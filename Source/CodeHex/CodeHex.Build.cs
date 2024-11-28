@@ -8,6 +8,12 @@ public class CodeHex : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		//Folders to work with:
+        PrivateIncludePaths.AddRange(new string[] {
+			"CodeHex",
+            "CodeHex/**"
+        });
+
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
