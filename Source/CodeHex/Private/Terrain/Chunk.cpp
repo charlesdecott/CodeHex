@@ -42,30 +42,17 @@ void AChunk::Tick(float DeltaTime)
 void AChunk::GenerateCells()
 {
 	UE_LOG(LogTemp, Log, TEXT("AChunk :: GenerateCells init :: x(%d) / y(%d) / section(%d)"), X_id, Y_id, section);
-	TArray<TArray<float>> Altitudes = LoadAltitudes();
 	for (int ix = 0; ix < Cells_n; ix++)
 	{
 		for (int iy = 0; iy < Cells_n; iy++)
 		{
-			TArray<TArray<float>> loc_Altitudes;
-
-			// Parcourir la sous-matrice � partir de (i, j)
-			for (int row = ix * Cell_Size; row < (ix + 1) * Cell_Size && row < Altitudes.Num(); ++row)
-			{
-				const TArray<float> &subRow = Altitudes[row];
-				TArray<float> newSubRow;
-				for (int col = iy * Cell_Size; col < (iy + 1) * Cell_Size && col < subRow.Num(); ++col)
-				{
-					newSubRow.Add(subRow[col]);
-				}
-				loc_Altitudes.Add(newSubRow);
-			}
 			FIntPoint Key = FIntPoint(
-				X_id + ix * std::pow(5, LOD - 1),
-				Y_id + iy * std::pow(5, LOD - 1));
+				X_id + ix * std::pow(Cells_n, LOD - 1),
+				Y_id + iy * std::pow(Cells_n, LOD - 1));
 
+			TArray<TArray<float>> Altitudes = LoadAltitudes(Key.X, Key.Y);
 			LoadImagery(Key.X, Key.Y, section);
-			AddCell(Key.X, Key.Y, section, loc_Altitudes);
+			AddCell(Key.X, Key.Y, section, Altitudes);
 			section++;
 		}
 	}
@@ -96,8 +83,8 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 	Builder.EnablePolyGroups();
 
 	// init all values
-	const int loc_Padding = std::pow(5, LOD - 1);
-	const float loc_CellSize = static_cast<float>(loc_Padding + static_cast<float>(loc_Padding) / (Cell_Size - 1)) * 100.0;
+	const int loc_Padding = std::pow(Cells_n, LOD - 1);
+	const float loc_CellSize = static_cast<float>(loc_Padding) * 100.0;
 
 	// Vérifiez que Altitudes() n'est pas nul
 	if (altitudes.Num() == 0)
@@ -119,7 +106,7 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 			int32 V = Builder.AddVertex(FVector3f(XX, YY, ZZ)) // FloatArr[iVY] *
 						  .SetTexCoord(FVector2f(
 							  (iVX * loc_CellSize) / (Cell_Size * loc_CellSize),
-							  (iVY * loc_CellSize) / (Cell_Size * loc_CellSize)));
+							  (iVY * loc_CellSize) / (Cell_Size* loc_CellSize)));
 			//   .SetNormalAndTangent(FVector3f(0.0f, 0.0f, 0.0f), FVector3f(0.0f, 0.0f, 0.0f))
 			//   .SetColor(FColor::Blue);
 
@@ -153,10 +140,10 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 	return;
 }
 
-TArray<TArray<float>> AChunk::LoadAltitudes()
+TArray<TArray<float>> AChunk::LoadAltitudes(int inX_id, int inY_id)
 {
 	TArray<TArray<float>> Altitudes;
-	const FString JsonFilePath = GetAltitudesJSONFilePath(X_id, Y_id, LOD);
+	const FString JsonFilePath = GetAltitudesJSONFilePath(inX_id, inY_id, LOD-1);
 	try
 	{
 		// Load the file into a string
@@ -235,7 +222,7 @@ void AChunk::LoadImagery(const int ix, const int iy, const int inSection)
 // Get the path of the chunk's JSON file
 FString AChunk::GetAltitudesJSONFilePath(int inX_id, int inY_id, int inLOD)
 {
-	const FString BasePath = TEXT("F:/MEKIVALA/theworld/RGEALTI/json/");
+	const FString BasePath = TEXT("C:/Users/forma/Documents/Mekivala/CodeHex/Data/RGEALTI/json/");
 	const FString LODFolder = FString::Printf(TEXT("LOD%d"), inLOD);
 	const FString LODFile = FString::Printf(TEXT("LOD%d_%d_%d.json"), inLOD, inX_id, inY_id);
 	return FPaths::Combine(BasePath, LODFolder, LODFile);
@@ -298,12 +285,12 @@ TArray<TArray<float>> AChunk::Fallback_Generate_Altitudes()
 {
 	TArray<TArray<float>> loc_Altitudes;
 	// Remplir AltitudeMatrix avec des FFloatArray
-	for (int i = 0; i < Altitudes_n; i++)
+	for (int i = 0; i < Cell_Size; i++)
 	{
 		TArray<float> FloatRow;
 
 		// Remplir chaque ligne avec 500 valeurs de 100.0f
-		for (int j = 0; j < Altitudes_n; j++)
+		for (int j = 0; j < Cell_Size; j++)
 		{
 			FloatRow.Add(LOD * 100.0f);
 		}

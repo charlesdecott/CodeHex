@@ -19,8 +19,11 @@ public:
 	// Mesh
 	TMap<FIntVector, AChunk *> Chunks;
 
-	int X_id = 64590;
-	int Y_id = 9140;
+	int32 X_id = 64590;
+	int32 Y_id = 9140;
+
+	int previous_xid = 0;
+	int previous_yid = 0;
 
 protected:
 	// Called when the game starts or when spawned

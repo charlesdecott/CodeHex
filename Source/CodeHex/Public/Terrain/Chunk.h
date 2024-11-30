@@ -44,9 +44,8 @@ public:
 	float OriginY = 0.0f;
 
 	// Settings
-	int Altitudes_n = 500;
-	int Cell_Size = 100;
-	int Cells_n = 5;
+	int Cell_Size = 101;
+	int Cells_n = 2;
 	int section = 0;
 
 protected:
@@ -64,7 +63,7 @@ public:
 
 	// Terrain
 	//// Altitudes
-	TArray<TArray<float>> LoadAltitudes();
+	TArray<TArray<float>> LoadAltitudes(int inX_id, int inY_id);
 	FString GetAltitudesJSONFilePath(int inX_id, int inY_id, int inLOD);
 	FString LoadJSONFile(FString JsonFilePath);
 	TArray<TArray<float>> ParseJSONAltitudes(FString JsonString);
