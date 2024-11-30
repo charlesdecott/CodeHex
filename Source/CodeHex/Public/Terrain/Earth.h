@@ -17,13 +17,16 @@ public:
 	AEarth();
 
 	// Mesh
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<FIntVector, AChunk *> Chunks;
 
-	int32 X_id = 64590;
-	int32 Y_id = 9140;
+	int X_id = 64584;
+	int Y_id = 9134;
 
-	int previous_xid = 0;
-	int previous_yid = 0;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int previous_xid = 64584;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int previous_yid = 9134;
 
 protected:
 	// Called when the game starts or when spawned
@@ -32,4 +35,8 @@ protected:
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+
+	void SpawnChunk(const int inX, const int inY, const int inLOD);
+	void SpawnNeighbors(const int inX, const int inY, const int inLOD);
+	void ClearChunks(const int inX, const int inY, const int inLOD);
 };
