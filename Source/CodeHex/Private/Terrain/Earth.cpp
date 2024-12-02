@@ -1,5 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
+#include <cmath>
 #include "Terrain/Earth.h"
 
 // Sets default values
@@ -16,10 +17,15 @@ void AEarth::BeginPlay()
 
 	UE_LOG(LogTemp, Log, TEXT("AEarth :: Init"));
 
-	int CurrentCellX = 64584;
-	int CurrentCellY = 9134;
-    
-	SpawnNeighbors(X_id, Y_id, 1);
+    for (int inLOD = 1; inLOD <= maxLOD; inLOD++)
+    {
+        int current_xid = X_id - (X_id % static_cast<int>(std::pow(n, inLOD - 1)));
+        int current_yid = Y_id - (Y_id % static_cast<int>(std::pow(n, inLOD - 1)));
+        UE_LOG(LogTemp, Log, TEXT("AEarth :: LOD bef %d"), inLOD);
+        Current_ids_LODs.Add(inLOD, FIntPoint(current_xid, current_yid));
+        UE_LOG(LogTemp, Log, TEXT("AEarth :: LOD aft %d"), inLOD);
+        SpawnNeighbors(current_xid, current_yid, inLOD);
+    }
 }
 
 // Called every frame
@@ -35,60 +41,188 @@ void AEarth::Tick(float DeltaTime)
         {
             FVector PlayerLocation = PlayerPawn->GetActorLocation();
 
-            int x_chunk = FMath::FloorToInt(PlayerLocation.X / (2 * 10000.0f))*2;
-            int y_chunk = FMath::FloorToInt(PlayerLocation.Y / (2 * 10000.0f))*2;
-
-
-            if (previous_xid != X_id+x_chunk || previous_yid != Y_id+y_chunk)
+            for (int inLOD = 1; inLOD <= maxLOD; inLOD++)
             {
-                previous_xid = X_id+x_chunk;
-                previous_yid = Y_id+y_chunk;
+                int new_xid = X_id+FMath::FloorToInt(PlayerLocation.X / (10000.0f));
+                int new_yid = Y_id+FMath::FloorToInt(PlayerLocation.Y / (10000.0f));
+                new_xid = new_xid - (new_xid % static_cast<int>(std::pow(n, inLOD - 1)));
+                new_yid = new_yid - (new_yid % static_cast<int>(std::pow(n, inLOD - 1)));
 
-                SpawnChunk(previous_xid, previous_yid, 1);
-                SpawnNeighbors(previous_xid, previous_yid, 1);
-                ClearChunks(previous_xid, previous_yid, 1);
+                FIntPoint previous_coord = Current_ids_LODs[inLOD];
+                int previous_xid = previous_coord.X;
+                int previous_yid = previous_coord.Y;
+
+
+                if (previous_xid != new_xid || previous_yid != new_yid)
+                {
+                    UE_LOG(LogTemp, Log, TEXT("AEarth :: Tick :: LOD change %d"), inLOD);
+                    Current_ids_LODs[inLOD] = FIntPoint(new_xid, new_yid);
+
+                    SpawnNeighbors(new_xid, new_yid, inLOD);
+                    ClearChunks(new_xid, new_yid, inLOD);
+                }
+                else{
+                    break;
+                }
+            }
+        }
+    }
+
+    if(ChunksToGenerate.Num() > 0 && ChunksGenerating.Num() < 25)
+    {
+        if (ChunksToGenerate.IsValidIndex(0))
+        {
+            // Prendre la valeur de l'élément à l'index spécifié
+            FIntVector Chunk = ChunksToGenerate[0];
+
+            // Supprimer l'élément du tableau source
+            ChunksToGenerate.RemoveAt(0);
+
+            // Ajouter l'élément au tableau de destination
+            ChunksGenerating.Add(Chunk);
+            SpawnChunk(Chunk.X, Chunk.Y, Chunk.Z);
+        }
+    }
+}
+
+
+void AEarth::SpawnNeighbors(const int inX, const int inY, const int inLOD)
+{
+    for (int i = -neighbors; i <= neighbors; i++)
+    {
+        for (int j = -neighbors; j <= neighbors; j++)
+        {
+            FIntVector Chunk = FIntVector(inX + i*std::pow(n, inLOD - 1), inY + j*std::pow(n, inLOD - 1), inLOD);
+            if(ChunksToGenerate.Contains(Chunk) || Chunks.Contains(Chunk) || ChunksGenerating.Contains(Chunk))
+            {
+                continue;
+            }
+            ChunksToGenerate.Add(Chunk);
+            // SpawnChunk(inX + i*std::pow(n, inLOD - 1), inY + j*std::pow(n, inLOD - 1), inLOD);
+        }
+    }
+    SortChunksToGenerate();
+}
+
+void AEarth::SortChunksToGenerate()
+{
+    ChunksToGenerate.Sort([](const FIntVector& A, const FIntVector& B)
+    {
+        return A.Z < B.Z;
+    });
+}
+
+void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
+{
+    TArray<FIntVector> KeyToRemove;
+    for (const FIntVector& Chunk : ChunksToGenerate)
+    {
+        if (Chunk.Z == inLOD)
+        {
+            if(
+                Chunk.X - inX > neighbors*std::pow(n, inLOD - 1) || 
+                Chunk.X - inX < -neighbors*std::pow(n, inLOD - 1) || 
+                Chunk.Y - inY > neighbors*std::pow(n, inLOD - 1) || 
+                Chunk.Y - inY < -neighbors*std::pow(n, inLOD - 1)
+            )
+            {
+                KeyToRemove.Add(Chunk);
+            }
+        }
+    }
+    // Supprimer les chunks marqués pour suppression
+    for (const FIntVector& Key : KeyToRemove)
+    {
+        ChunksToGenerate.Remove(Key);
+    }
+
+
+    KeyToRemove.Empty(); // Réinitialiser le tableau pour la prochaine utilisation
+    TArray<FIntVector> KeyToRemove2;
+    for (const TPair<FIntVector, AChunk*>& Elem : Chunks)
+    {
+            if (Elem.Key.Z == inLOD)
+            {
+                if(
+                    Elem.Key.X - inX > neighbors*std::pow(n, inLOD - 1) || 
+                    Elem.Key.X - inX < -neighbors*std::pow(n, inLOD - 1) || 
+                    Elem.Key.Y - inY > neighbors*std::pow(n, inLOD - 1) || 
+                    Elem.Key.Y - inY < -neighbors*std::pow(n, inLOD - 1)
+                )
+                {
+                    KeyToRemove2.Add(Elem.Key);
+                }
+
+                // if (inLOD > 1)
+                // {
+                //     if(
+                //         Chunks.Contains(FIntVector(inX, inY, inLOD-1)) &&
+                //         Chunks.Contains(FIntVector(inX+static_cast<int>(std::pow(n, inLOD - 1)), inY, inLOD-1)) &&
+                //         Chunks.Contains(FIntVector(inX, inY+static_cast<int>(std::pow(n, inLOD - 1)), inLOD-1)) &&
+                //         Chunks.Contains(FIntVector(inX+static_cast<int>(std::pow(n, inLOD - 1)), inY+static_cast<int>(std::pow(n, inLOD - 1)), inLOD-1))
+                //     )
+                //     {
+                //         KeyToRemove.Add(Elem.Key);
+                //     }
+                // }
+            }
+    }
+    // Supprimez les chunks après avoir terminé l'itération
+    for (const FIntVector& Key : KeyToRemove2)
+    {
+        if (AChunk* Chunk = Chunks[Key])
+        {
+            if (Chunk->Destroy())
+            {
+                Chunks.Remove(Key);
             }
         }
     }
 }
 
-// Déclarez un compteur atomique pour suivre le nombre d'instances en cours d'exécution
-std::atomic<int32> ActiveSpawnChunkTasks(0);
 
 void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
 {
     if (Chunks.Contains(FIntVector(inX, inY, inLOD)))
     {
+        ChunksGenerating.Remove(FIntVector(inX, inY, inLOD));
         return;
     }
 
-    // Vérifiez si le nombre d'instances en cours d'exécution est inférieur à 3
-    if (ActiveSpawnChunkTasks >= 25)
-    {
-        // Retarder l'exécution de cette tâche jusqu'à ce qu'une des tâches en cours soit terminée
-        AsyncTask(ENamedThreads::GameThread, [this, inX, inY, inLOD]()
-        {
-            FPlatformProcess::Sleep(0.1f); // Attendre 100 ms avant de réessayer
-            SpawnChunk(inX, inY, inLOD); // Réessayer de lancer la tâche
-        });
-        return;
-    }
-
-    // Incrémenter le compteur atomique
-    ActiveSpawnChunkTasks++;
+    // bool bHasLowerLODChunks = false;
+    // if (inLOD > 1)
+    // {
+    //     int lowerLOD = inLOD - 1;
+    //     int step = static_cast<int>(std::pow(n, lowerLOD));
+    //     for (int i = 0; i < n; ++i)
+    //     {
+    //         for (int j = 0; j < n; ++j)
+    //         {
+    //             if (Chunks.Contains(FIntVector(inX + i * step, inY + j * step, lowerLOD)))
+    //             {
+    //                 bHasLowerLODChunks = true;
+    //                 break;
+    //             }
+    //         }
+    //         if (bHasLowerLODChunks)
+    //         {
+    //             break;
+    //         }
+    //     }
+    // }
 
     // Exécuter la tâche de génération de chunk de manière asynchrone
-    AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, inX, inY, inLOD]()
+    AsyncTask(ENamedThreads::GameThread, [this, inX, inY, inLOD]()
     {
         FTransform SpawnTransform;
-        SpawnTransform.SetLocation(FVector((inX - X_id) * 10000.0f, (inY - Y_id) * 10000.0f, 0.0f));
+        SpawnTransform.SetLocation(FVector((inX - X_id) * (10000.0f), (inY - Y_id) * (10000.0f), 0.0f));
         SpawnTransform.SetRotation(FQuat(FRotator(0.0f, 0.0f, 0.0f)));
+        AChunk* SpawnedChunk = GetWorld()->SpawnActor<AChunk>(AChunk::StaticClass(), SpawnTransform);
+        Chunks.Add(FIntVector(inX, inY, inLOD), SpawnedChunk);
 
         // Utiliser AsyncTask pour revenir au thread du jeu pour la création de l'acteur
-        AsyncTask(ENamedThreads::GameThread, [this, SpawnTransform, inX, inY, inLOD]()
+        AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, SpawnedChunk, inX, inY, inLOD]()
         {
-            AChunk* SpawnedChunk = GetWorld()->SpawnActor<AChunk>(AChunk::StaticClass(), SpawnTransform);
-            Chunks.Add(FIntVector(inX, inY, inLOD), SpawnedChunk);
             //RealtimeMeshes.Add(FIntVector(CurrentCellX + i*5, CurrentCellY + j*5, 1), RealtimeMesh);
             // SpawnedChunk->RealtimeMesh = RealtimeMesh;
             SpawnedChunk->X_id = inX;
@@ -98,57 +232,12 @@ void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
             SpawnedChunk->LOD = inLOD;
             SpawnedChunk->GenerateCells();
 
-            // Décrémenter le compteur atomique lorsque la tâche est terminée
-            ActiveSpawnChunkTasks--;
+            if(false) // && Chunks.Contains(FIntVector(inX, inY, inLOD-1))
+            {
+                SpawnedChunk->SetCellsVisibility(false);
+            }
+            ChunksGenerating.Remove(FIntVector(inX, inY, inLOD));
         });
     });
 
-}
-
-void AEarth::SpawnNeighbors(const int inX, const int inY, const int inLOD)
-{
-    for (int i = -2; i < 3; i++)
-    {
-        for (int j = -2; j < 3; j++)
-        {
-            SpawnChunk(inX + i*2, inY + j*2, inLOD);
-        }
-    }
-}
-
-void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
-{
-    int distance = 8;
-    TArray<FIntVector> KeyToRemove;
-    for (const TPair<FIntVector, AChunk*>& Elem : Chunks)
-    {
-            if (Elem.Key.Z == 1)
-            {
-                if(
-                    Elem.Key.X - previous_xid > distance || 
-                    Elem.Key.X - previous_xid < -distance || 
-                    Elem.Key.Y - previous_yid > distance || 
-                    Elem.Key.Y - previous_yid < -distance
-                )
-                {
-                    KeyToRemove.Add(Elem.Key);
-                    UE_LOG(LogTemp, Log, TEXT("AEarth :: ClearChunks planned to x : %d   y : %d"), Elem.Key.X, Elem.Key.Y);
-                }
-            }
-    }
-
-    // Supprimez les chunks après avoir terminé l'itération
-    for (const FIntVector& Key : KeyToRemove)
-    {
-        UE_LOG(LogTemp, Log, TEXT("AEarth :: ClearChunks x : %d   y : %d"), Key.X, Key.Y);
-        if (AChunk* Chunk = Chunks[Key])
-        {
-            UE_LOG(LogTemp, Log, TEXT("AEarth :: ClearChunks in  x : %d   y : %d"), Key.X, Key.Y);
-            if (Chunk->Destroy())
-            {
-                Chunks.Remove(Key);
-            }
-            UE_LOG(LogTemp, Log, TEXT("AEarth :: ClearChunks after  x : %d   y : %d"), Key.X, Key.Y);
-        }
-    }
 }

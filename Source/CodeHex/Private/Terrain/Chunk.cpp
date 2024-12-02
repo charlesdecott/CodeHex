@@ -28,7 +28,6 @@ void AChunk::BeginPlay()
 void AChunk::OnConstruction(const FTransform &Transform)
 {
 	Super::OnConstruction(Transform);
-	UE_LOG(LogTemp, Log, TEXT("AChunk :: OnConstruction debug"));
 
 	RealtimeMesh = RealtimeMeshComponent->InitializeRealtimeMesh<URealtimeMeshSimple>();
 }
@@ -39,9 +38,18 @@ void AChunk::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void AChunk::SetCellsVisibility(bool newVisibility)
+{
+	for (int sec = 0; sec < 4; sec++)
+	{
+		const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(sec)));
+		const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
+		RealtimeMesh->SetSectionVisibility(PolyGroup0SectionKey, newVisibility);
+	}
+}
+
 void AChunk::GenerateCells()
 {
-	UE_LOG(LogTemp, Log, TEXT("AChunk :: GenerateCells init :: x(%d) / y(%d) / section(%d)"), X_id, Y_id, section);
 	for (int ix = 0; ix < Cells_n; ix++)
 	{
 		for (int iy = 0; iy < Cells_n; iy++)
@@ -56,7 +64,6 @@ void AChunk::GenerateCells()
 			section++;
 		}
 	}
-	UE_LOG(LogTemp, Log, TEXT("AChunk :: GenerateCells end :: x(%d) / y(%d) / section(%d)"), X_id, Y_id, section);
 }
 void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TArray<float>> altitudes)
 {
@@ -83,8 +90,8 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 	Builder.EnablePolyGroups();
 
 	// init all values
-	const int loc_Padding = std::pow(Cells_n, LOD - 1);
-	const float loc_CellSize = static_cast<float>(loc_Padding) * 100.0;
+	const int loc_Padding = std::pow(2, LOD - 1);
+	const float loc_CellSize = loc_Padding * 100.0;
 
 	// Vérifiez que Altitudes() n'est pas nul
 	if (altitudes.Num() == 0)
@@ -100,8 +107,9 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 
 		for (int32 iVY = 0; iVY < Cell_Size; iVY++)
 		{
-			const float XX = (static_cast<float>(ix - X_id) * (static_cast<float>(Cell_Size - 1) * loc_CellSize)) + static_cast<float>(iVX) * loc_CellSize;
-			const float YY = (static_cast<float>(iy - Y_id) * (static_cast<float>(Cell_Size - 1) * loc_CellSize)) + static_cast<float>(iVY) * loc_CellSize;
+			const float XX = (static_cast<float>(ix - X_id) / std::pow(2, LOD - 1) * (static_cast<float>(Cell_Size - 1) * loc_CellSize)) + static_cast<float>(iVX) * loc_CellSize;
+			const float YY = (static_cast<float>(iy - Y_id) / std::pow(2, LOD - 1) * (static_cast<float>(Cell_Size - 1) * loc_CellSize)) + static_cast<float>(iVY) * loc_CellSize;
+
 			const float ZZ = FloatArr[iVY] * 100;
 			int32 V = Builder.AddVertex(FVector3f(XX, YY, ZZ)) // FloatArr[iVY] *
 						  .SetTexCoord(FVector2f(
@@ -134,7 +142,12 @@ void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TAr
 	}
 
 	RealtimeMesh->CreateSectionGroup(GroupKey, *StreamSet);
-	RealtimeMesh->UpdateSectionConfig(PolyGroup0SectionKey, SectionConfig, true);
+	RealtimeMesh->UpdateSectionConfig(PolyGroup0SectionKey, SectionConfig, LOD == 1 ? true : false);
+
+	// if (inSection == 3)
+	// {
+	// 	RealtimeMesh->SetSectionVisibility(PolyGroup0SectionKey, false);
+	// }
 
 	// UE_LOG(LogTemp, Log, TEXT("AChunk :: AddCell finish :: x(%d) / y(%d) / section(%d) / lenAlti(%d)"), ix, iy, inSection, altitudes.Num());
 	return;
@@ -181,40 +194,43 @@ void AChunk::LoadImagery(const int ix, const int iy, const int inSection)
 	TArray<uint8> ImageData;
 	if (!FFileHelper::LoadFileToArray(ImageData, *FullPath))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to load image file from path: %s"),
-			   *FullPath);
+		// UE_LOG(LogTemp, Error, TEXT("Failed to load image file from path: %s"),
+		// 	   *FullPath);
 	}
 
-	// Convert the image data to a UTexture2D
-	UTexture2D *LoadedTexture = FImageUtils::ImportBufferAsTexture2D(ImageData);
-	if (!LoadedTexture)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to convert image data to texture!"));
-	}
+	AsyncTask(ENamedThreads::GameThread, [this, ImageData, inSection]()
+    {
+		// Convert the image data to a UTexture2D
+		UTexture2D *LoadedTexture = FImageUtils::ImportBufferAsTexture2D(ImageData);
+		if (!LoadedTexture)
+		{
+			// UE_LOG(LogTemp, Error, TEXT("Failed to convert image data to texture!"));
+		}
 
-	// Load a predefined material (ensure that you have an existing material in
-	// the content directory)
-	FString MaterialPath = TEXT(
-		"Material'/Game/Terrain/M_Satelite.M_Satelite'"); // Adjust path as needed
-	UMaterialInterface *BaseMaterial =
-		LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
-	if (!BaseMaterial)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to load base material!"));
-	}
+		// Load a predefined material (ensure that you have an existing material in
+		// the content directory)
+		FString MaterialPath = TEXT(
+			"Material'/Game/Terrain/M_Satelite.M_Satelite'"); // Adjust path as needed
+		UMaterialInterface *BaseMaterial =
+			LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+		if (!BaseMaterial)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to load base material!"));
+		}
 
-	// Create a dynamic material instance from the base material
-	UMaterialInstanceDynamic *DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
-	if (!DynamicMaterial)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Failed to create dynamic material instance!"));
-	}
+		// Create a dynamic material instance from the base material
+		UMaterialInstanceDynamic *DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+		if (!DynamicMaterial)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create dynamic material instance!"));
+		}
 
-	// Set the texture parameter in the material instance
-	DynamicMaterial->SetTextureParameterValue(FName("Texture"), LoadedTexture);
+		// Set the texture parameter in the material instance
+		DynamicMaterial->SetTextureParameterValue(FName("Texture"), LoadedTexture);
 
-	// Add Material to Imageries
-	RealtimeMesh->SetupMaterialSlot(inSection, "ImageryMaterial", DynamicMaterial); //nullptr
+		// Add Material to Imageries
+		RealtimeMesh->SetupMaterialSlot(inSection, "ImageryMaterial", DynamicMaterial); //nullptr
+	});
 
 	return;
 }
