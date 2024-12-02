@@ -19,8 +19,8 @@ void AEarth::BeginPlay()
 
     for (int inLOD = 1; inLOD <= maxLOD; inLOD++)
     {
-        int current_xid = X_id - (X_id % static_cast<int>(std::pow(n, inLOD - 1)));
-        int current_yid = Y_id - (Y_id % static_cast<int>(std::pow(n, inLOD - 1)));
+        int current_xid = X_id - (X_id % static_cast<int>(std::pow(n, inLOD )));
+        int current_yid = Y_id - (Y_id % static_cast<int>(std::pow(n, inLOD )));
         UE_LOG(LogTemp, Log, TEXT("AEarth :: LOD bef %d"), inLOD);
         Current_ids_LODs.Add(inLOD, FIntPoint(current_xid, current_yid));
         UE_LOG(LogTemp, Log, TEXT("AEarth :: LOD aft %d"), inLOD);
@@ -45,8 +45,8 @@ void AEarth::Tick(float DeltaTime)
             {
                 int new_xid = X_id+FMath::FloorToInt(PlayerLocation.X / (10000.0f));
                 int new_yid = Y_id+FMath::FloorToInt(PlayerLocation.Y / (10000.0f));
-                new_xid = new_xid - (new_xid % static_cast<int>(std::pow(n, inLOD - 1)));
-                new_yid = new_yid - (new_yid % static_cast<int>(std::pow(n, inLOD - 1)));
+                new_xid = new_xid - (new_xid % static_cast<int>(std::pow(n, inLOD )));
+                new_yid = new_yid - (new_yid % static_cast<int>(std::pow(n, inLOD )));
 
                 FIntPoint previous_coord = Current_ids_LODs[inLOD];
                 int previous_xid = previous_coord.X;
@@ -92,7 +92,7 @@ void AEarth::SpawnNeighbors(const int inX, const int inY, const int inLOD)
     {
         for (int j = -neighbors; j <= neighbors; j++)
         {
-            FIntVector Chunk = FIntVector(inX + i*std::pow(n, inLOD - 1), inY + j*std::pow(n, inLOD - 1), inLOD);
+            FIntVector Chunk = FIntVector(inX + i*std::pow(n, inLOD), inY + j*std::pow(n, inLOD), inLOD);
             if(ChunksToGenerate.Contains(Chunk) || Chunks.Contains(Chunk) || ChunksGenerating.Contains(Chunk))
             {
                 continue;
@@ -120,10 +120,10 @@ void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
         if (Chunk.Z == inLOD)
         {
             if(
-                Chunk.X - inX > neighbors*std::pow(n, inLOD - 1) || 
-                Chunk.X - inX < -neighbors*std::pow(n, inLOD - 1) || 
-                Chunk.Y - inY > neighbors*std::pow(n, inLOD - 1) || 
-                Chunk.Y - inY < -neighbors*std::pow(n, inLOD - 1)
+                Chunk.X - inX > neighbors*std::pow(n, inLOD ) || 
+                Chunk.X - inX < -neighbors*std::pow(n, inLOD ) || 
+                Chunk.Y - inY > neighbors*std::pow(n, inLOD ) || 
+                Chunk.Y - inY < -neighbors*std::pow(n, inLOD )
             )
             {
                 KeyToRemove.Add(Chunk);
@@ -144,10 +144,10 @@ void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
             if (Elem.Key.Z == inLOD)
             {
                 if(
-                    Elem.Key.X - inX > neighbors*std::pow(n, inLOD - 1) || 
-                    Elem.Key.X - inX < -neighbors*std::pow(n, inLOD - 1) || 
-                    Elem.Key.Y - inY > neighbors*std::pow(n, inLOD - 1) || 
-                    Elem.Key.Y - inY < -neighbors*std::pow(n, inLOD - 1)
+                    Elem.Key.X - inX > neighbors*std::pow(n, inLOD ) || 
+                    Elem.Key.X - inX < -neighbors*std::pow(n, inLOD ) || 
+                    Elem.Key.Y - inY > neighbors*std::pow(n, inLOD ) || 
+                    Elem.Key.Y - inY < -neighbors*std::pow(n, inLOD )
                 )
                 {
                     KeyToRemove2.Add(Elem.Key);
