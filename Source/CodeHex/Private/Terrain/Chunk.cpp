@@ -207,12 +207,11 @@ void AChunk::LoadImagery(const int ix, const int iy, const int inSection)
 {
 	// Base du chemin
 	const FString BasePath = FPaths::Combine(
-		TEXT("F:/MEKIVALA/theworld/BDORTHO/"),
-		TEXT("data"),
-		FString::Printf(TEXT("LOD%d"), LOD));
+		TEXT("C:/Users/forma/Documents/Mekivala/CodeHex/Data/BDORTHO/output/"),
+		FString::Printf(TEXT("LOD%d"), LOD-1));
 
 	// LOD File
-	const FString Filepath = FString::Printf(TEXT("LOD%d_%d_%d.jpg"), LOD, ix, iy); //(static_cast<int>(Y_Chunk_id + iy * std::pow(5, LOD - 1))));
+	const FString Filepath = FString::Printf(TEXT("LOD%d_%d_%d.jpg"), LOD-1, ix, iy); //(static_cast<int>(Y_Chunk_id + iy * std::pow(5, LOD - 1))));
 
 	// Construire le chemin complet
 	const FString &FullPath = FPaths::Combine(BasePath, Filepath);
