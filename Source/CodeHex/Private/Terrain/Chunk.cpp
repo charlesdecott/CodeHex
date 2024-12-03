@@ -38,6 +38,20 @@ void AChunk::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
+void AChunk::SetCellVisibility(int inSection, bool newVisibility)
+{
+	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection)));
+	const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
+	RealtimeMesh->SetSectionVisibility(PolyGroup0SectionKey, newVisibility);
+}
+
+bool AChunk::GetCellVisibility(int inSection)
+{
+	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection)));
+	const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
+	return RealtimeMesh->IsSectionVisible(PolyGroup0SectionKey);
+}
+
 void AChunk::SetCellsVisibility(bool newVisibility)
 {
 	for (int sec = 0; sec < 4; sec++)
@@ -50,28 +64,41 @@ void AChunk::SetCellsVisibility(bool newVisibility)
 
 void AChunk::GenerateCells()
 {
-	for (int ix = 0; ix < Cells_n; ix++)
-	{
-		for (int iy = 0; iy < Cells_n; iy++)
-		{
-			FIntPoint Key = FIntPoint(
-				X_id + ix * std::pow(Cells_n, LOD - 1),
-				Y_id + iy * std::pow(Cells_n, LOD - 1));
+	// settings
+	int padding = std::pow(Cells_n, LOD - 1);
 
-			TArray<TArray<float>> Altitudes = LoadAltitudes(Key.X, Key.Y);
-			LoadImagery(Key.X, Key.Y, section);
-			AddCell(Key.X, Key.Y, section, Altitudes);
-			section++;
-		}
-	}
+	// bot_left
+	FIntPoint bot_left = FIntPoint(X_id, Y_id);
+	int bot_left_section = 0;
+	AddCell(bot_left.X, bot_left.Y, bot_left_section);
+
+	// bot right
+	FIntPoint bot_right = FIntPoint(X_id, Y_id+padding);
+	int bot_right_section = 1;
+	AddCell(bot_right.X, bot_right.Y, bot_right_section);
+
+	// top_left
+	FIntPoint top_left = FIntPoint(X_id+padding, Y_id);
+	int top_left_section = 2;
+	AddCell(top_left.X, top_left.Y, top_left_section);
+
+	// bot right
+	FIntPoint top_right = FIntPoint(X_id+padding, Y_id+padding);
+	int top_right_section = 3;
+	AddCell(top_right.X, top_right.Y, top_right_section);
 }
-void AChunk::AddCell(const int ix, const int iy, const int inSection, TArray<TArray<float>> altitudes)
+
+void AChunk::AddCell(const int ix, const int iy, const int inSection)
 {
 	if (Cells.Contains(FIntPoint(ix, iy)))
 	{
 		return;
 	}
 	Cells.Add(FIntPoint(ix, iy), inSection);
+
+	// generate data
+	TArray<TArray<float>> altitudes = LoadAltitudes(ix, iy);
+	LoadImagery(ix, iy, inSection);
 
 	// config
 	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection))); // *FString::FromInt(LOD)

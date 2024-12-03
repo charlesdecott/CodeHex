@@ -59,8 +59,10 @@ public:
 
 	// General
 	void GenerateCells();
-	void AddCell(const int ix, const int iy, const int inSection, TArray<TArray<float>> altitudes);
+	void AddCell(const int ix, const int iy, const int inSection);
 	void SetCellsVisibility(bool newVisibility);
+	void SetCellVisibility(int inSection, bool newVisibility);
+	bool GetCellVisibility(int inSection);
 
 	// Terrain
 	//// Altitudes

@@ -33,6 +33,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<FIntVector> ChunksGenerating;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<int> showHideQueue;
+
 	int X_id = 64584;
 	int Y_id = 9134;
 
@@ -53,4 +56,5 @@ public:
 	void SpawnNeighbors(const int inX, const int inY, const int inLOD);
 	void SortChunksToGenerate();
     void ClearChunks(const int inX, const int inY, const int inLOD);
+	void HideShowParent();
 };

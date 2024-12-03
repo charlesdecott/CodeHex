@@ -64,6 +64,7 @@ void AEarth::Tick(float DeltaTime)
                 else{
                     break;
                 }
+
             }
         }
     }
@@ -82,6 +83,13 @@ void AEarth::Tick(float DeltaTime)
             ChunksGenerating.Add(Chunk);
             SpawnChunk(Chunk.X, Chunk.Y, Chunk.Z);
         }
+    }
+
+    if(showHideQueue.Num() > 0)
+    {
+        // TODO : Move to avoid during this operation every tick
+        HideShowParent();
+        showHideQueue.RemoveAt(0);
     }
 }
 
@@ -152,19 +160,6 @@ void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
                 {
                     KeyToRemove2.Add(Elem.Key);
                 }
-
-                // if (inLOD > 1)
-                // {
-                //     if(
-                //         Chunks.Contains(FIntVector(inX, inY, inLOD-1)) &&
-                //         Chunks.Contains(FIntVector(inX+static_cast<int>(std::pow(n, inLOD - 1)), inY, inLOD-1)) &&
-                //         Chunks.Contains(FIntVector(inX, inY+static_cast<int>(std::pow(n, inLOD - 1)), inLOD-1)) &&
-                //         Chunks.Contains(FIntVector(inX+static_cast<int>(std::pow(n, inLOD - 1)), inY+static_cast<int>(std::pow(n, inLOD - 1)), inLOD-1))
-                //     )
-                //     {
-                //         KeyToRemove.Add(Elem.Key);
-                //     }
-                // }
             }
     }
     // Supprimez les chunks après avoir terminé l'itération
@@ -180,6 +175,96 @@ void AEarth::ClearChunks(const int inX, const int inY, const int inLOD)
     }
 }
 
+// TODO : Avoid looping over all chunks => use last chunk coord to check only his parents
+void AEarth::HideShowParent()
+{
+
+    for (int inLOD = 2; inLOD <= maxLOD; inLOD++)
+    {
+        for (const TPair<FIntVector, AChunk*>& Elem : Chunks)
+        {
+            if (Elem.Key.Z == inLOD)
+            {
+                // settings
+                FIntVector Key = Elem.Key;
+                AChunk* Chunk = Elem.Value;
+                int loc_padding = static_cast<int>(std::pow(n, inLOD-1));
+
+                // bot_left section
+                FIntVector bot_left = FIntVector(Key.X, Key.Y, inLOD-1);
+                int bot_left_section = 0;
+                if(Chunks.Contains(bot_left))
+                {
+                    if(Chunk->GetCellVisibility(bot_left_section))
+                    {
+                        Chunk->SetCellVisibility(bot_left_section, false);
+                    }
+                }
+                else
+                {
+                    if(!Chunk->GetCellVisibility(bot_left_section))
+                    {
+                        Chunk->SetCellVisibility(bot_left_section, true);
+                    }
+                }
+
+                // bot_right section
+                FIntVector bot_right = FIntVector(Key.X, Key.Y+loc_padding, inLOD-1);
+                int bot_right_section = 1;
+                if(Chunks.Contains(bot_right))
+                {
+                    if(Chunk->GetCellVisibility(bot_right_section))
+                    {
+                        Chunk->SetCellVisibility(bot_right_section, false);
+                    }
+                }
+                else
+                {
+                    if(!Chunk->GetCellVisibility(bot_right_section))
+                    {
+                        Chunk->SetCellVisibility(bot_right_section, true);
+                    }
+                }
+
+                // top_left section
+                FIntVector top_left = FIntVector(Key.X+loc_padding, Key.Y, inLOD-1);
+                int top_left_section = 2;
+                if(Chunks.Contains(top_left))
+                {
+                    if(Chunk->GetCellVisibility(top_left_section))
+                    {
+                        Chunk->SetCellVisibility(top_left_section, false);
+                    }
+                }
+                else
+                {
+                    if(!Chunk->GetCellVisibility(top_left_section))
+                    {
+                        Chunk->SetCellVisibility(top_left_section, true);
+                    }
+                }
+
+                // top_right section
+                FIntVector top_right = FIntVector(Key.X+loc_padding, Key.Y+loc_padding, inLOD-1);
+                int top_right_section = 3;
+                if(Chunks.Contains(top_right))
+                {
+                    if(Chunk->GetCellVisibility(top_right_section))
+                    {
+                        Chunk->SetCellVisibility(top_right_section, false);
+                    }
+                }
+                else
+                {
+                    if(!Chunk->GetCellVisibility(top_right_section))
+                    {
+                        Chunk->SetCellVisibility(top_right_section, true);
+                    }
+                }
+            }
+        }
+    }
+}
 
 void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
 {
@@ -188,28 +273,6 @@ void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
         ChunksGenerating.Remove(FIntVector(inX, inY, inLOD));
         return;
     }
-
-    // bool bHasLowerLODChunks = false;
-    // if (inLOD > 1)
-    // {
-    //     int lowerLOD = inLOD - 1;
-    //     int step = static_cast<int>(std::pow(n, lowerLOD));
-    //     for (int i = 0; i < n; ++i)
-    //     {
-    //         for (int j = 0; j < n; ++j)
-    //         {
-    //             if (Chunks.Contains(FIntVector(inX + i * step, inY + j * step, lowerLOD)))
-    //             {
-    //                 bHasLowerLODChunks = true;
-    //                 break;
-    //             }
-    //         }
-    //         if (bHasLowerLODChunks)
-    //         {
-    //             break;
-    //         }
-    //     }
-    // }
 
     // Exécuter la tâche de génération de chunk de manière asynchrone
     AsyncTask(ENamedThreads::GameThread, [this, inX, inY, inLOD]()
@@ -232,11 +295,43 @@ void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
             SpawnedChunk->LOD = inLOD;
             SpawnedChunk->GenerateCells();
 
-            if(false) // && Chunks.Contains(FIntVector(inX, inY, inLOD-1))
+            // settings
+            int loc_padding = static_cast<int>(std::pow(n, inLOD-1));
+
+            // bot_left section
+            FIntVector bot_left = FIntVector(inX, inY, inLOD-1);
+            int bot_left_section = 0;
+            if(Chunks.Contains(bot_left))
             {
-                SpawnedChunk->SetCellsVisibility(false);
+                SpawnedChunk->SetCellVisibility(bot_left_section, false);
             }
+
+            // bot_right section
+            FIntVector bot_right = FIntVector(inX, inY+loc_padding, inLOD-1);
+            int bot_right_section = 1;
+            if(Chunks.Contains(bot_right))
+            {
+                SpawnedChunk->SetCellVisibility(bot_right_section, false);
+            }
+
+            // top_left section
+            FIntVector top_left = FIntVector(inX+loc_padding, inY, inLOD-1);
+            int top_left_section = 2;
+            if(Chunks.Contains(top_left))
+            {
+                SpawnedChunk->SetCellVisibility(top_left_section, false);
+            }
+
+            // top_right section
+            FIntVector top_right = FIntVector(inX+loc_padding, inY+loc_padding, inLOD-1);
+            int top_right_section = 3;
+            if(Chunks.Contains(top_right))
+            {
+                SpawnedChunk->SetCellVisibility(top_right_section, false);
+            }
+
             ChunksGenerating.Remove(FIntVector(inX, inY, inLOD));
+            showHideQueue.Add(inLOD);
         });
     });
 
