@@ -69,7 +69,7 @@ void AEarth::Tick(float DeltaTime)
         }
     }
 
-    if(ChunksToGenerate.Num() > 0 && ChunksGenerating.Num() < 25)
+    if(ChunksToGenerate.Num() > 0 && ChunksGenerating.Num() < 5)
     {
         if (ChunksToGenerate.IsValidIndex(0))
         {

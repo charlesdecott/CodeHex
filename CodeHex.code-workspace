@@ -95,7 +95,8 @@
 			"unordered_set": "cpp",
 			"ranges": "cpp",
 			"xhash": "cpp",
-			"xtree": "cpp"
+			"xtree": "cpp",
+			"xiosbase": "cpp"
 		}
 	},
 	"extensions": {

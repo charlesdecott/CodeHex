@@ -90,23 +90,45 @@ void AChunk::GenerateCells()
 	int top_right_section = 3;
 	AddCell(top_right.X, top_right.Y, top_right_section);
 
+	section = 4;
 	// generate buildings
 	if (LOD == 1){
-		// Init
-		float AltitudeOffset = 21400.33f;
-		float BuildingHeight = 1000.0f;
 
-		TArray<FVector2D> loc_Vertices = {
-			FVector2D(0, 0),
-			FVector2D(1000, 0),
-			FVector2D(1000, 500),
-			FVector2D(500, 500),
-			FVector2D(500, 1000),
-			FVector2D(1000, 1000),
-			FVector2D(1000, 2000),
-			FVector2D(0, 2000)
-		};
-		GenBuilding(loc_Vertices, AltitudeOffset, BuildingHeight, 4);
+		// setup material
+		AsyncTask(ENamedThreads::GameThread, [this]()
+		{
+			FString MaterialPath = TEXT(
+				"Material'/Game/Terrain/M_Building.M_Building'"); // Adjust path as needed
+			UMaterialInterface *BaseMaterial =
+				LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+			if (!BaseMaterial)
+			{
+				UE_LOG(LogTemp, Error, TEXT("Failed to load base material!"));
+			}
+
+			RealtimeMesh->SetupMaterialSlot(4, "BuildingMaterial", BaseMaterial); //nullptr
+		});
+	
+		// Load buildings
+		LoadBuildings(bot_left);
+		LoadBuildings(bot_right);
+		LoadBuildings(top_left);
+		LoadBuildings(top_right);
+		// Init
+		// float AltitudeOffset = 21400.33f;
+		// float BuildingHeight = 1000.0f;
+
+		// TArray<FVector2D> loc_Vertices = {
+		// 	FVector2D(0, 0),
+		// 	FVector2D(1000, 0),
+		// 	FVector2D(1000, 500),
+		// 	FVector2D(500, 500),
+		// 	FVector2D(500, 1000),
+		// 	FVector2D(1000, 1000),
+		// 	FVector2D(1000, 2000),
+		// 	FVector2D(0, 2000)
+		// };
+		// GenBuilding(loc_Vertices, AltitudeOffset, BuildingHeight, 4);
 	}
 	
 }
@@ -413,11 +435,8 @@ bool IsPointInTriangle(FVector2D p, FVector2D a, FVector2D b, FVector2D c)
 }
 
 
-TArray<int> Triangulate(TArray<FVector2D>& Vertices) {
-
-	// debug log
-	UE_LOG(LogTemp, Log, TEXT("Triangulate :: Vertices(%d)"), Vertices.Num());
-
+TArray<int> Triangulate(TArray<FVector2D>& Vertices) 
+{
     TArray<int> Triangles;
 
     if (Vertices.Num() == 0) {
@@ -436,9 +455,10 @@ TArray<int> Triangulate(TArray<FVector2D>& Vertices) {
 	{
 		for (int j = i + 1; j < Vertices.Num(); ++j) 
 		{
-			if (Vertices[i].Equals(Vertices[j], 1e-6f))
+			if (Vertices[i].Equals(Vertices[j]))
 			{
-				UE_LOG(LogTemp, Error, TEXT("Duplicate or near-identical points detected at index %d and %d"), i, j);
+				UE_LOG(LogTemp, Error, TEXT("Duplicate or near-identical points detected at index %d and %d  ::  iX(%f) / jX(%f)"), i, j, Vertices[i].X, Vertices[j].X);
+				UE_LOG(LogTemp, Error, TEXT("Duplicate or near-identical points detected at index %d and %d  ::  iY(%f) / jY(%f)"), i, j, Vertices[i].Y, Vertices[j].Y);
 			}
 		}
 	}
@@ -567,7 +587,7 @@ void AChunk::GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, flo
 	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection))); // *FString::FromInt(LOD)
 	const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
 	FRealtimeMeshSectionConfig SectionConfig;
-	SectionConfig.MaterialSlot = 0; //inSection
+	SectionConfig.MaterialSlot = 4; //inSection
 
 	// builder
 	TSharedPtr<FRealtimeMeshStreamSet> StreamSet = MakeShared<FRealtimeMeshStreamSet>();
@@ -599,3 +619,95 @@ void AChunk::GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, flo
 	RealtimeMesh->CreateSectionGroup(GroupKey, *StreamSet);
 	RealtimeMesh->UpdateSectionConfig(PolyGroup0SectionKey, SectionConfig, true);
 }
+
+
+void AChunk::LoadBuildings(FIntPoint chunk)
+{
+	// Path to the JSON file
+	const FString FilePath = FPaths::Combine(
+		TEXT("C:/Users/forma/Documents/Mekivala/CodeHex/Data/BDNB/output/"),
+		FString::Printf(TEXT("LOD%d"), LOD-1),
+		FString::Printf(TEXT("LOD%d_%d_%d.json"), LOD-1, chunk.X, chunk.Y));
+
+    // Lire le contenu du fichier JSON
+    FString JsonContent;
+    if (!FFileHelper::LoadFileToString(JsonContent, *FilePath))
+    {
+        UE_LOG(LogTemp, Error, TEXT("Impossible de lire le fichier JSON : %s"), *FilePath);
+        return;
+    }
+
+    // Analyser le contenu JSON
+    TSharedPtr<FJsonValue> ParsedJson;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonContent);
+    if (!FJsonSerializer::Deserialize(Reader, ParsedJson) || !ParsedJson.IsValid())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Erreur lors de l'analyse du JSON."));
+        return;
+    }
+
+    // Vérifier si le JSON est un tableau
+    if (ParsedJson->Type != EJson::Array)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Le JSON racine n'est pas un tableau."));
+        return;
+    }
+
+    // Parcourir le tableau JSON
+    const TArray<TSharedPtr<FJsonValue>>& JsonArray = ParsedJson->AsArray();
+    for (int32 Index = 0; Index < JsonArray.Num(); Index++)
+    {
+        const TSharedPtr<FJsonObject> JsonObject = JsonArray[Index]->AsObject();
+        if (!JsonObject.IsValid())
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Élément %d non valide dans le JSON."), Index);
+            continue;
+        }
+
+        // Exemple : Afficher des clés spécifiques
+        FString BatimentID = JsonObject->GetStringField("batiment_construction_id");
+        float Area = JsonObject->GetNumberField("area");
+		float High = JsonObject->GetNumberField("high");
+		float Altitude = JsonObject->GetNumberField("altitude");
+
+        // Points (liste de coordonnées)
+		TArray<FVector2D> loc_Vertices = {};
+        const TArray<TSharedPtr<FJsonValue>>* PointsArray;
+        if (JsonObject->TryGetArrayField("points", PointsArray))
+        {
+            for (const TSharedPtr<FJsonValue>& PointValue : *PointsArray)
+            {
+                const TArray<TSharedPtr<FJsonValue>>* PointCoords;
+                if (PointValue->TryGetArray(PointCoords) && PointCoords->Num() == 2)
+                {
+                    float X = (*PointCoords)[0]->AsNumber();
+                    float Y = (*PointCoords)[1]->AsNumber();
+					
+					float x_pad = static_cast<float>(chunk.X - X_id) * std::pow(2, LOD - 1) * 10000.0f;
+					float y_pad = static_cast<float>(chunk.Y - Y_id) * std::pow(2, LOD - 1) * 10000.0f;
+
+					loc_Vertices.Add(FVector2D(x_pad+X, y_pad+Y));
+                }
+            }
+		
+		GenBuilding(loc_Vertices, Altitude, High, section);
+
+		section++;
+        }
+    }
+}
+
+
+
+// n=1 & MaxLOD=1 + triangulate ingame
+
+// [2024.12.04-18.14.21:134][439]LogTemp: AEarth :: Init
+// [2024.12.04-18.14.21:458][448]LogTemp: End
+
+
+
+
+// n=1 & MaxLOD=1 + triangulate precomputed
+
+// 
+// 

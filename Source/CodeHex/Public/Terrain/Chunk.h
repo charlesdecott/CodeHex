@@ -84,5 +84,6 @@ public:
 
 	// Buildings
 	void GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, float BuildingHeight, int inSection);
+	void LoadBuildings(FIntPoint chunk);
 
 };
