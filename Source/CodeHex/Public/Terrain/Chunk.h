@@ -48,6 +48,13 @@ public:
 	int Cells_n = 2;
 	int section = 0;
 
+	// Test
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FVector> Verticess;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<int32> Triangless;
+
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -73,4 +80,9 @@ public:
 	TArray<TArray<float>> Fallback_Generate_Altitudes();
 	//// Imageries
 	void LoadImagery(const int ix, const int iy, const int inSection);
+
+
+	// Buildings
+	void GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, float BuildingHeight, int inSection);
+
 };

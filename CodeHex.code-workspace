@@ -82,7 +82,20 @@
 			"regex": "cpp",
 			"complex": "cpp",
 			"xlocmon": "cpp",
-			"valarray": "cpp"
+			"valarray": "cpp",
+			"__hash_table": "cpp",
+			"__split_buffer": "cpp",
+			"__tree": "cpp",
+			"hash_map": "cpp",
+			"list": "cpp",
+			"queue": "cpp",
+			"set": "cpp",
+			"span": "cpp",
+			"stack": "cpp",
+			"unordered_set": "cpp",
+			"ranges": "cpp",
+			"xhash": "cpp",
+			"xtree": "cpp"
 		}
 	},
 	"extensions": {

@@ -2,6 +2,9 @@
 
 #include "Terrain/Chunk.h"
 
+// #include <vector>
+// #include <cmath>
+// #include <list>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -86,6 +89,26 @@ void AChunk::GenerateCells()
 	FIntPoint top_right = FIntPoint(X_id+padding, Y_id+padding);
 	int top_right_section = 3;
 	AddCell(top_right.X, top_right.Y, top_right_section);
+
+	// generate buildings
+	if (LOD == 1){
+		// Init
+		float AltitudeOffset = 21400.33f;
+		float BuildingHeight = 1000.0f;
+
+		TArray<FVector2D> loc_Vertices = {
+			FVector2D(0, 0),
+			FVector2D(1000, 0),
+			FVector2D(1000, 500),
+			FVector2D(500, 500),
+			FVector2D(500, 1000),
+			FVector2D(1000, 1000),
+			FVector2D(1000, 2000),
+			FVector2D(0, 2000)
+		};
+		GenBuilding(loc_Vertices, AltitudeOffset, BuildingHeight, 4);
+	}
+	
 }
 
 void AChunk::AddCell(const int ix, const int iy, const int inSection)
@@ -341,4 +364,238 @@ TArray<TArray<float>> AChunk::Fallback_Generate_Altitudes()
 		loc_Altitudes.Add(FloatRow);
 	}
 	return loc_Altitudes;
+}
+
+
+
+
+float CalculatePolygonArea(const TArray<FVector2D>& Vertices) {
+    float Area = 0.0f;
+    for (int i = 0; i < Vertices.Num(); ++i) {
+        FVector2D Current = Vertices[i];
+        FVector2D Next = Vertices[(i + 1) % Vertices.Num()];
+        Area += (Current.X * Next.Y - Next.X * Current.Y);
+    }
+    return Area * 0.5f;
+}
+
+void EnsureClockwiseOrder(TArray<FVector2D>& Vertices) {
+    if (CalculatePolygonArea(Vertices) > 0.0f) {
+        Algo::Reverse(Vertices); // Inverser si nécessaire
+    }
+}
+
+
+float CrossProduct(const FVector2D& V1, const FVector2D& V2) {
+    return V1.X * V2.Y - V1.Y * V2.X;
+}
+
+bool IsPointInTriangle(FVector2D p, FVector2D a, FVector2D b, FVector2D c)
+{
+	FVector2D ab = b - a;
+	FVector2D bc = c - b;
+	FVector2D ca = a - c;
+
+	FVector2D ap = p - a;
+	FVector2D bp = p - b;
+	FVector2D cp = p - c;
+
+	float cross1 = CrossProduct(ab, ap);
+	float cross2 = CrossProduct(bc, bp);
+	float cross3 = CrossProduct(ca, cp);
+
+	if(cross1 > 0.0f || cross2 > 0.0f || cross3 > 0.0f)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+
+TArray<int> Triangulate(TArray<FVector2D>& Vertices) {
+
+	// debug log
+	UE_LOG(LogTemp, Log, TEXT("Triangulate :: Vertices(%d)"), Vertices.Num());
+
+    TArray<int> Triangles;
+
+    if (Vertices.Num() == 0) {
+        throw std::invalid_argument("Vertices array is empty");
+    }
+
+    if (Vertices.Num() < 3) {
+       	throw std::invalid_argument("Vertices.Num() < 3");
+    }
+
+    if (Vertices.Num() > 1024) {
+       	throw std::invalid_argument("Vertices.Num() > 1024");
+    }
+
+	for (int i = 0; i < Vertices.Num(); ++i) 
+	{
+		for (int j = i + 1; j < Vertices.Num(); ++j) 
+		{
+			if (Vertices[i].Equals(Vertices[j], 1e-6f))
+			{
+				UE_LOG(LogTemp, Error, TEXT("Duplicate or near-identical points detected at index %d and %d"), i, j);
+			}
+		}
+	}
+
+    TArray<int> IndexList;
+	for (int i = 0; i < Vertices.Num(); i++)
+	{
+		IndexList.Add(i);
+	}
+
+	int MaxIterations = IndexList.Num() * IndexList.Num(); // Éviter une boucle infinie
+	int IterationCount = 0;
+    while (IndexList.Num() > 3) 
+	{
+		for (int i = 0; i < IndexList.Num(); ++i)
+		{
+            int A = IndexList[i];
+            int B = IndexList[(i - 1 + IndexList.Num()) % IndexList.Num()];
+            int C = IndexList[(i + 1) % IndexList.Num()];
+
+            const FVector2D& VA = Vertices[A];
+            const FVector2D& VB = Vertices[B];
+            const FVector2D& VC = Vertices[C];
+
+            FVector2D VAToVB = VB - VA;
+            FVector2D VAToVC = VC - VA;
+
+            // Test si le sommet est convexe
+            if (CrossProduct(VAToVB, VAToVC) < 0.0f) {
+                continue;
+            }
+
+            bool IsEar = true;
+
+            // Vérifie si un autre sommet est dans le triangle
+            for (size_t j = 0; j < Vertices.Num(); ++j) {
+                if (j == A || j == B || j == C) {
+                    continue;
+                }
+
+                const FVector2D& P = Vertices[j];
+                if (IsPointInTriangle(P, VB, VA, VC)) {
+                    IsEar = false;
+                    break;
+                }
+            }
+
+            if (IsEar) {
+                Triangles.Add(B);
+                Triangles.Add(A);
+                Triangles.Add(C);
+
+                IndexList.RemoveAt(i);
+                break;
+            }
+        }
+
+		if (++IterationCount > MaxIterations) {
+			UE_LOG(LogTemp, Error, TEXT("Triangulate :: Triangulation failed: too many iterations."));
+			return {};
+		}
+    }
+
+    // Ajout du dernier triangle
+    Triangles.Add(IndexList[0]);
+    Triangles.Add(IndexList[1]);
+    Triangles.Add(IndexList[2]);
+
+    return Triangles;
+}
+
+
+void AChunk::GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, float BuildingHeight, int inSection)
+{
+	EnsureClockwiseOrder(inVertices);
+
+	TArray<FVector> Vertices;
+	for (int i = 0; i < inVertices.Num(); ++i)
+	{
+        Vertices.Add(FVector(inVertices[i].X, inVertices[i].Y, AltitudeOffset));
+    }
+
+	TArray<int> Triangles = Triangulate(inVertices);
+
+	if (Triangles.Num() == 0) {
+        UE_LOG(LogTemp, Error, TEXT("Triangulation failed."));
+        return;
+    }
+
+	// add roof
+	int totalVertexCount = Vertices.Num();
+	for (int i = 0; i < totalVertexCount; ++i)
+	{
+        Vertices.Add(FVector(Vertices[i].X, Vertices[i].Y, Vertices[i].Z + BuildingHeight));
+    }
+
+
+	int totalTriangleIndexCount = Triangles.Num();
+	for (int i = 0; i < totalTriangleIndexCount; ++i)
+	{
+		Triangles.Add(Triangles[i]+totalVertexCount);
+	}
+
+
+	// add wall
+	for (int i = 0; i < totalVertexCount; ++i)
+	{
+        Triangles.Add(i);
+		Triangles.Add((i+1) % totalVertexCount);
+		Triangles.Add((i+totalVertexCount) % (totalVertexCount*2));
+
+		Triangles.Add((i+totalVertexCount) % (totalVertexCount*2));
+		Triangles.Add((i+1) % totalVertexCount);
+		if ((i+totalVertexCount+1) == (totalVertexCount*2))
+		{
+			Triangles.Add(totalVertexCount);
+		}
+		else{
+			Triangles.Add((i+totalVertexCount+1) % (totalVertexCount*2));
+		}
+    }
+
+
+	// GENERATE MESH
+	// config
+	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection))); // *FString::FromInt(LOD)
+	const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
+	FRealtimeMeshSectionConfig SectionConfig;
+	SectionConfig.MaterialSlot = 0; //inSection
+
+	// builder
+	TSharedPtr<FRealtimeMeshStreamSet> StreamSet = MakeShared<FRealtimeMeshStreamSet>();
+
+	TRealtimeMeshBuilderLocal<int32> Builder(*StreamSet.ToWeakPtr().Pin());
+
+	// Builder.EnableTexCoords();
+	// Builder.EnableColors();
+	Builder.EnableTangents();
+	Builder.EnablePolyGroups();
+
+
+	// Generate Vertices and UVs
+	for (int32 V = 0; V < Vertices.Num(); V++)
+	{
+		int32 Vi = Builder.AddVertex(FVector3f(Vertices[V].X, Vertices[V].Y, Vertices[V].Z)); // FloatArr[iVY] *
+	}
+
+	for (int32 T = 0; T < Triangles.Num(); T = T + 3)
+	{
+		Builder.AddTriangle(
+					Triangles[T],
+					Triangles[T+1],
+					Triangles[T+2],
+					0 /* This is the polygroup index */);
+	}
+
+
+	RealtimeMesh->CreateSectionGroup(GroupKey, *StreamSet);
+	RealtimeMesh->UpdateSectionConfig(PolyGroup0SectionKey, SectionConfig, true);
 }
