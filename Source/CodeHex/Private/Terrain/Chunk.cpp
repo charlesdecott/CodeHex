@@ -683,8 +683,8 @@ void AChunk::LoadBuildings(FIntPoint chunk)
                     float X = (*PointCoords)[0]->AsNumber();
                     float Y = (*PointCoords)[1]->AsNumber();
 					
-					float x_pad = static_cast<float>(chunk.X - X_id) * std::pow(2, LOD - 1) * 10000.0f;
-					float y_pad = static_cast<float>(chunk.Y - Y_id) * std::pow(2, LOD - 1) * 10000.0f;
+					float x_pad = static_cast<float>((chunk.X - X_id) / std::pow(2, LOD - 1)) * std::pow(2, LOD - 1) * 10000.0f;
+					float y_pad = static_cast<float>((chunk.Y - Y_id) / std::pow(2, LOD - 1)) * std::pow(2, LOD - 1) * 10000.0f;
 
 					loc_Vertices.Add(FVector2D(x_pad+X, y_pad+Y));
                 }
