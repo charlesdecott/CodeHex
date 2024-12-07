@@ -10,12 +10,37 @@ AEarth::AEarth()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-// Called when the game starts or when spawned
-void AEarth::BeginPlay()
+// when constructing the actor
+void AEarth::OnConstruction(const FTransform &Transform)
 {
-	Super::BeginPlay();
+	Super::OnConstruction(Transform);
 
-	UE_LOG(LogTemp, Log, TEXT("AEarth :: Init"));
+    UE_LOG(LogTemp, Log, TEXT("AEarth :: Init"));
+
+    MyCustomFunction();
+}
+
+void AEarth::MyCustomFunction()
+{
+    UE_LOG(LogTemp, Log, TEXT("MyCustomFunction called!"));
+
+    // Ajoutez ici la logique que vous souhaitez exécuter lorsque le bouton est cliqué
+    for (const TPair<FIntVector, AChunk*>& Elem : Chunks)
+    {
+            
+        if (AChunk* Chunk = Chunks[Elem.Key])
+        {
+            if (Chunk->Destroy())
+            {
+                // Chunks.Remove(Elem.Key);
+                continue;
+            }
+        }
+    }
+    Chunks.Empty();
+    showHideQueue.Empty();
+    ChunksGenerating.Empty();
+    ChunksToGenerate.Empty();
 
     for (int inLOD = 1; inLOD <= maxLOD; inLOD++)
     {
@@ -26,6 +51,22 @@ void AEarth::BeginPlay()
         UE_LOG(LogTemp, Log, TEXT("AEarth :: LOD aft %d"), inLOD);
         SpawnNeighbors(current_xid, current_yid, inLOD);
     }
+
+
+    for (int i = 0; i < maxGeneratingChunks; i++)
+    {
+        ProcessChunkQueue();
+    }
+}
+
+// Called when the game starts or when spawned
+void AEarth::BeginPlay()
+{
+	Super::BeginPlay();
+
+	UE_LOG(LogTemp, Log, TEXT("AEarth :: BeginPlay"));
+
+    MyCustomFunction();
 }
 
 // Called every frame
@@ -33,6 +74,44 @@ void AEarth::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+    UpdateChunks();
+    
+}
+
+
+void AEarth::ProcessChunkQueue()
+{
+    if(ChunksToGenerate.Num() > 0 && ChunksGenerating.Num() < maxGeneratingChunks)
+    {
+        if (ChunksToGenerate.IsValidIndex(0))
+        {
+            // Prendre la valeur de l'élément à l'index spécifié
+            FIntVector Chunk = ChunksToGenerate[0];
+
+            // Supprimer l'élément du tableau source
+            ChunksToGenerate.RemoveAt(0);
+
+            // Ajouter l'élément au tableau de destination
+            ChunksGenerating.Add(Chunk);
+            SpawnChunk(Chunk.X, Chunk.Y, Chunk.Z);
+        }
+    }
+}
+
+
+void AEarth::ProcessHideShowQueue()
+{
+    if(showHideQueue.Num() > 0)
+    {
+        // TODO : Move to avoid during this operation every tick
+        HideShowParent();
+        showHideQueue.RemoveAt(0);
+    }
+}
+
+
+void AEarth::UpdateChunks()
+{
     APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
     if (PlayerController)
     {
@@ -69,28 +148,9 @@ void AEarth::Tick(float DeltaTime)
         }
     }
 
-    if(ChunksToGenerate.Num() > 0 && ChunksGenerating.Num() < 5)
-    {
-        if (ChunksToGenerate.IsValidIndex(0))
-        {
-            // Prendre la valeur de l'élément à l'index spécifié
-            FIntVector Chunk = ChunksToGenerate[0];
+    ProcessChunkQueue();
 
-            // Supprimer l'élément du tableau source
-            ChunksToGenerate.RemoveAt(0);
-
-            // Ajouter l'élément au tableau de destination
-            ChunksGenerating.Add(Chunk);
-            SpawnChunk(Chunk.X, Chunk.Y, Chunk.Z);
-        }
-    }
-
-    if(showHideQueue.Num() > 0)
-    {
-        // TODO : Move to avoid during this operation every tick
-        HideShowParent();
-        showHideQueue.RemoveAt(0);
-    }
+    ProcessHideShowQueue();
 }
 
 
@@ -281,11 +341,13 @@ void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
         SpawnTransform.SetLocation(FVector((inX - X_id) * (10000.0f), (inY - Y_id) * (10000.0f), 0.0f));
         SpawnTransform.SetRotation(FQuat(FRotator(0.0f, 0.0f, 0.0f)));
         AChunk* SpawnedChunk = GetWorld()->SpawnActor<AChunk>(AChunk::StaticClass(), SpawnTransform);
+        SpawnedChunk->SetFlags(RF_Transient); // Marquer l'acteur comme Transient
         Chunks.Add(FIntVector(inX, inY, inLOD), SpawnedChunk);
-
+        
         // Utiliser AsyncTask pour revenir au thread du jeu pour la création de l'acteur
         AsyncTask(ENamedThreads::AnyBackgroundThreadNormalTask, [this, SpawnedChunk, inX, inY, inLOD]()
         {
+
             //RealtimeMeshes.Add(FIntVector(CurrentCellX + i*5, CurrentCellY + j*5, 1), RealtimeMesh);
             // SpawnedChunk->RealtimeMesh = RealtimeMesh;
             SpawnedChunk->X_id = inX;
@@ -331,6 +393,8 @@ void AEarth::SpawnChunk(const int inX, const int inY, const int inLOD)
             }
 
             ChunksGenerating.Remove(FIntVector(inX, inY, inLOD));
+            ProcessChunkQueue();
+
             showHideQueue.Add(inLOD);
         });
     });

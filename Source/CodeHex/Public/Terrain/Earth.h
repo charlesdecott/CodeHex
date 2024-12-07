@@ -22,9 +22,12 @@ public:
 	int neighbors = 1;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int maxLOD = 8; // 10
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int maxGeneratingChunks = 5;
+
 
 	// Mesh
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UPROPERTY(VisibleAnywhere, Transient, BlueprintReadOnly, Category = "YourCategory")
 	TMap<FIntVector, AChunk *> Chunks;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -42,11 +45,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TMap<int, FIntPoint> Current_ids_LODs;
 
-
+	// Fonction pour le bouton
+    UFUNCTION(CallInEditor, Category = "YourCategory")
+    void MyCustomFunction();
 
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void OnConstruction(const FTransform &Transform) override;
 
 public:
 	// Called every frame
@@ -57,4 +63,9 @@ public:
 	void SortChunksToGenerate();
     void ClearChunks(const int inX, const int inY, const int inLOD);
 	void HideShowParent();
+
+	void UpdateChunks();
+
+	void ProcessChunkQueue();
+	void ProcessHideShowQueue();
 };
