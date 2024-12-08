@@ -39,8 +39,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	TArray<int> showHideQueue;
 
-	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int X_id = 64584;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	int Y_id = 9134;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
