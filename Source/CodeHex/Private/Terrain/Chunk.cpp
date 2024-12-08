@@ -108,6 +108,7 @@ void AChunk::GenerateCells()
 
 			RealtimeMesh->SetupMaterialSlot(4, "BuildingMaterial", BaseMaterial); //nullptr
 		});
+
 	
 		// Load buildings
 		LoadBuildings(bot_left);
@@ -582,12 +583,69 @@ void AChunk::GenBuilding(TArray<FVector2D> inVertices, float AltitudeOffset, flo
     }
 
 
+	// GENERATE MATERIAL
+	AsyncTask(ENamedThreads::GameThread, [this, inSection]()
+    {
+		// Load a predefined material (ensure that you have an existing material in
+		// the content directory)
+		FString MaterialPath = TEXT(
+			"/Script/Engine.Material'/Game/Buildings/BP_Buildings.BP_Buildings'"); // Adjust path as needed
+		UMaterialInterface *BaseMaterial =
+			LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+		if (!BaseMaterial)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to load base material!"));
+		}
+
+		// Create a dynamic material instance from the base material
+		UMaterialInstanceDynamic *DynamicMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+		if (!DynamicMaterial)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create dynamic material instance!"));
+		}
+
+		// Définir trois couleurs
+		FLinearColor Color1(0.90f, 0.85f, 0.74f, 1.0f); // rgb(90%, 85%, 74%)
+		FLinearColor Color2(0.95f, 0.81f, 0.68f, 1.0f); // rgb(95%, 81%, 68%)
+		FLinearColor Color3(0.90f, 0.78f, 0.62f, 1.0f); // rgb(90%, 78%, 62%)
+		FLinearColor Color4(0.82f, 0.73f, 0.61f, 1.0f); // rgb(82%, 73%, 61%)
+		FLinearColor Color5(0.84f, 0.66f, 0.52f, 1.0f); // rgb(84%, 66%, 52%)
+		FLinearColor Color6(0.77f, 0.52f, 0.40f, 1.0f); // rgb(77%, 52%, 40%)
+		FLinearColor Color7(0.83f, 0.82f, 0.75f, 1.0f); // rgb(83%, 82%, 75%)
+		FLinearColor Color8(1.0f, 1.0f, 1.0f, 1.0f); // rgb(84%, 66%, 52%)
+		FLinearColor Color9(0.32f, 0.32f, 0.32f, 1.0f); // rgb(77%, 52%, 40%)
+		FLinearColor Color10(0.93f, 0.69f, 0.43f, 1.0f); // rgb(83%, 82%, 75%)
+
+		// Choisir une couleur au hasard parmi les trois
+		TArray<FLinearColor> Colors = { Color1, Color2, Color3, Color4, Color5, Color6, Color7, Color8, Color9, Color10 };
+		int32 RandomIndex = FMath::RandRange(0, Colors.Num() - 1);
+		FLinearColor ChosenColor = Colors[RandomIndex];
+
+		// Générer des variations de la couleur choisie
+		float VariationRange = 0.03f; // Ajustez cette valeur pour contrôler l'amplitude des variations
+		float RandomR = FMath::Clamp(ChosenColor.R + FMath::FRandRange(-VariationRange, VariationRange), 0.0f, 1.0f);
+		float RandomG = FMath::Clamp(ChosenColor.G + FMath::FRandRange(-VariationRange, VariationRange), 0.0f, 1.0f);
+		float RandomB = FMath::Clamp(ChosenColor.B + FMath::FRandRange(-VariationRange, VariationRange), 0.0f, 1.0f);
+		float RandomA = ChosenColor.A; // Garder l'opacité inchangée
+
+		FLinearColor RandomColor(RandomR, RandomG, RandomB, RandomA);
+
+		// Définissez une couleur RGBA sur le matériau dynamique
+    	// FLinearColor ColorValue(FMath::FRand(), FMath::FRand(), FMath::FRand(), 1.0f); // Exemple de couleur rouge avec une opacité de 1.0
+
+		// Set the texture parameter in the material instance
+		DynamicMaterial->SetVectorParameterValue(FName("Color"), RandomColor);
+
+		// Add Material to Imageries
+		RealtimeMesh->SetupMaterialSlot(inSection, "ImageryMaterial", DynamicMaterial); //nullptr
+	});
+
 	// GENERATE MESH
 	// config
 	const FRealtimeMeshSectionGroupKey GroupKey = FRealtimeMeshSectionGroupKey::Create(0, FName(FString::FromInt(inSection))); // *FString::FromInt(LOD)
 	const FRealtimeMeshSectionKey PolyGroup0SectionKey = FRealtimeMeshSectionKey::CreateForPolyGroup(GroupKey, 0);
 	FRealtimeMeshSectionConfig SectionConfig;
-	SectionConfig.MaterialSlot = 4; //inSection
+	SectionConfig.MaterialSlot = inSection; //inSection
 
 	// builder
 	TSharedPtr<FRealtimeMeshStreamSet> StreamSet = MakeShared<FRealtimeMeshStreamSet>();
