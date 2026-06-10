@@ -6,9 +6,10 @@ CodeHex génère à la volée un terrain explorable basé sur de vraies données
 
 ## 🎬 Démo
 
-[![Démo CodeHex](https://img.youtube.com/vi/OgjPYFBnSik/maxresdefault.jpg)](https://youtu.be/OgjPYFBnSik)
+[![Démo CodeHex](https://img.youtube.com/vi/W_q5KX7optY/maxresdefault.jpg)](https://youtu.be/W_q5KX7optY)
 
-▶️ **[Voir la vidéo de démonstration](https://youtu.be/OgjPYFBnSik)**
+
+▶️ **[Voir la vidéo de démonstration](https://youtu.be/W_q5KX7optY)**
 
 ## 🛠️ Stack technique
 
